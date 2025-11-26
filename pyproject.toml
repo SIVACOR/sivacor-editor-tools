@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling >= 1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sivacor"
+version = "0.1.0"
+description = "A tool for interacting with SIVACOR platform."
+authors = [
+  {name = "Kacper Kowalik", email = "xarthisius.kk@gmail.com"},
+]
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "typer",
+    "girder-client",
+]
+
+
+[project.scripts]
+sivacor = "sivacor.cli:app"
