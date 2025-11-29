@@ -1,7 +1,17 @@
 import os
+import sys
 import typer
 from typing_extensions import Annotated
 from girder_client import GirderClient
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+from rich.padding import Padding
+from rich.prompt import Confirm
+
+
+console = Console()
 
 
 def client() -> GirderClient:
@@ -11,7 +21,193 @@ def client() -> GirderClient:
     return gc
 
 
-def get_user(text: Annotated[str, typer.Argument(help="The name to search for")]):
+def _search_user(gc: GirderClient, user: str) -> dict:
+    typer.echo(f"Searching for user with text: {user}")
+    users = gc.get(f"/user?text={user}")
+    if not users:
+        typer.echo(f"No user found with (search: {user})", err=True)
+        raise typer.Abort()
+    elif len(users) > 1:
+        u = next((_ for _ in users if _.get("login") == user), None)
+        if not u:
+            typer.echo("Found multiple users:")
+            for u in users:
+                typer.echo(
+                    f" - \"{u['firstName']} {u['lastName']}\" <{u['email']}> ({u['login']})"
+                )
+            typer.echo(
+                "Trying to search for user by their specific login name.", err=True
+            )
+            raise typer.Abort()
+    else:
+        u = users[0]
+    print(
+        f"Found user: \"{u['firstName']} {u['lastName']}\" <{u['email']}> ({u['login']})"
+    )
+    return u
+
+
+def _get_submission_collection(gc: GirderClient) -> dict:
+    root_collection = gc.get("/collection", parameters={"name": "Submissions"})
+    if not root_collection:
+        typer.echo("No 'Submissions' collection found!", err=True)
+        raise typer.Abort()
+    return root_collection[0]
+
+
+def status_icon(status: str) -> str:
+    status_map = {
+        "submitted": "⏳",
+        "processing": "🔄",
+        "completed": "✅",
+        "failed": "❌",
+    }
+    return status_map.get(status.lower(), "❓")
+
+
+def list_submissions(
+    user: Annotated[
+        str | None, typer.Option(help="Only print submissions created by this user")
+    ] = None,
+    sort: Annotated[
+        str,
+        typer.Option(
+            help="Field to sort submissions by, e.g. 'created' or 'name'",
+            show_default=True,
+        ),
+    ] = "created",
+    sortDir: Annotated[
+        int,
+        typer.Option(
+            help="Direction to sort submissions (1: ascending, -1: descending)",
+            show_default=True,
+        ),
+    ] = -1,
+) -> None:
     # Dummy implementation for demonstration purposes
     gc = client()
-    return gc.get(f"/user?text={text}")
+    if user:
+        user_info = _search_user(gc, user)
+        console.print(f"[yellow]Filtering by user ID: {user_info['_id']}[/yellow]")
+
+    console.print("[bold cyan]🚀 Listing Submissions[/bold cyan]")
+    table = Table(
+        title="Submission Folders", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("Submission Name", style="bold green", min_width=20)
+    table.add_column("ID", style="dim", min_width=24)
+    table.add_column("Image Tag", justify="left")
+    table.add_column("Created Date", justify="right", style="cyan")
+    table.add_column("Status", justify="center")
+
+    root_collection = _get_submission_collection(gc)
+    params = {
+        "sort": sort,
+        "sortdir": sortDir,
+        "parentType": "collection",
+        "parentId": root_collection["_id"],
+    }
+    for folder in gc.listResource("folder", params):
+        if user:
+            if folder["meta"].get("creator_id", "") != user_info["_id"]:
+                continue
+        image = folder["meta"].get("image_tag", "N/A")
+        created = folder["created"].split(".")[0].replace("T", " ")
+        table.add_row(
+            folder["name"],
+            folder["_id"],
+            image,
+            created,
+            status_icon(folder["meta"].get("status", "unknown")),
+        )
+
+    console.print(table)
+
+
+def get_submission(
+    submission: Annotated[
+        str, typer.Argument(help="The ID or name of the submission to retrieve")
+    ],
+) -> None:
+    # Dummy implementation for demonstration purposes
+    typer.echo("Getting a specific submission...")
+    gc = client()
+    root_collection = _get_submission_collection(gc)
+    if "-" in submission:
+        folders = gc.get(
+            "/folder",
+            parameters={
+                "name": submission,
+                "parentType": "collection",
+                "parentId": root_collection["_id"],
+            },
+        )
+        folder = folders[0] if folders else None
+    else:
+        folder = gc.get(f"/folder/{submission}")
+
+    if not folder:
+        console.print(
+            f"[bold red]❌ Error:[/bold red] Submission '{submission}' not found.",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=1)
+
+    # 2. Display Core Summary
+    meta = folder.get("meta", {})
+
+    summary_content = Text()
+    summary_content.append("Status: ", style="bold")
+    summary_content.append(f"{meta.get('status', 'N/A')}\n", style="yellow")
+    summary_content.append("Image Tag: ", style="bold")
+    summary_content.append(f"{meta.get('image_tag', 'N/A')}\n", style="magenta")
+    summary_content.append("Created: ", style="bold")
+    summary_content.append(
+        f"{folder.get('created', 'N/A').split('.')[0].replace('T', ' ')}\n",
+        style="cyan",
+    )
+    summary_content.append("Updated: ", style="bold")
+    summary_content.append(
+        f"{folder.get('updated', 'N/A').split('.')[0].replace('T', ' ')}", style="cyan"
+    )
+
+    summary_panel = Panel(
+        summary_content,
+        title="[bold white]📝 Submission Summary[/bold white]",
+        border_style="blue",
+    )
+    console.print(summary_panel)
+
+    # 3. Display File Downloads
+    console.print(Padding("\n[bold]📦 Available Files for Download:[/bold]", (1, 0)))
+
+    FILE_MAP = {
+        "Replicated Package": meta.get("replpack_file_id"),
+        "Run output log": meta.get("stdout_file_id"),
+        "Run error log": meta.get("stderr_file_id"),
+        "TRO Declaration": meta.get("tro_file_id"),
+        "Trusted Timestamp": meta.get("tsr_file_id"),
+        "TRS Signature": meta.get("sig_file_id"),
+    }
+
+    # Create rich Text objects for the file list
+    file_list = []
+
+    for name, file_id in FILE_MAP.items():
+        if file_id:
+            # Use Typer.prompt (which uses Rich) to offer the download
+            file_list.append(
+                Text(f"[bold white]{name}:[/bold white] [dim]{file_id}[/dim]")
+            )
+
+            # The actual "appeal" of this section is the interactive download option
+            action = Confirm.ask(
+                f"Do you want to download [bold yellow]{name}[/bold yellow]?"
+            )
+            if action:
+                # Use a cleaner filename for the user
+                fobj = gc.get(f"/file/{file_id}")
+                gc.downloadFile(file_id, fobj["name"])
+                print(f"Downloaded file: {fobj['name']}")
+
+    # console.print(Columns(file_list, expand=True, equal=True))
