@@ -1,3 +1,4 @@
+import json as jsonlib
 import os
 import sys
 from enum import Enum
@@ -106,6 +107,10 @@ def list_submissions(
             show_default=True,
         ),
     ] = -1,
+    json: Annotated[
+        bool,
+        typer.Option(help="Output submission list in JSON format", show_default=True),
+    ] = False,
 ) -> None:
     # Dummy implementation for demonstration purposes
     gc = client()
@@ -113,7 +118,8 @@ def list_submissions(
         user_info = _search_user(gc, user)
         console.print(f"[yellow]Filtering by user ID: {user_info['_id']}[/yellow]")
 
-    console.print("[bold cyan]🚀 Listing Submissions[/bold cyan]")
+    if not json:
+        console.print("[bold cyan]🚀 Listing Submissions[/bold cyan]")
     table = Table(
         title="Submission Folders", show_header=True, header_style="bold magenta"
     )
@@ -130,10 +136,12 @@ def list_submissions(
         "parentType": "collection",
         "parentId": root_collection["_id"],
     }
+    folders = []
     for folder in gc.listResource("folder", params):
         if user:
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
+        folders.append(folder)
         image = folder["meta"].get("image_tag", "N/A")
         created = folder["created"].split(".")[0].replace("T", " ")
         table.add_row(
@@ -144,7 +152,10 @@ def list_submissions(
             status_icon(folder["meta"].get("status", "unknown")),
         )
 
-    console.print(table)
+    if json:
+        console.print(jsonlib.dumps(folders, indent=2))
+    else:
+        console.print(table)
 
 
 def get_submission(
@@ -158,9 +169,16 @@ def get_submission(
             show_default=False,
         ),
     ] = None,
+    json: Annotated[
+        bool,
+        typer.Option(
+            help="Output submission details in JSON format", show_default=True
+        ),
+    ] = False,
 ) -> None:
     # Dummy implementation for demonstration purposes
-    typer.echo("Getting a specific submission...")
+    if not json:
+        typer.echo("Getting a specific submission...")
     gc = client()
     root_collection = _get_submission_collection(gc)
     params = {
@@ -181,6 +199,10 @@ def get_submission(
             file=sys.stderr,
         )
         raise typer.Exit(code=1)
+
+    if json:
+        console.print(jsonlib.dumps(folder, indent=2))
+        return
 
     # 2. Display Core Summary
     meta = folder.get("meta", {})
