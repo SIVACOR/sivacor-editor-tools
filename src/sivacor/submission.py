@@ -1,17 +1,40 @@
 import os
 import sys
-import typer
-from typing_extensions import Annotated
-from girder_client import GirderClient
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.text import Text
-from rich.padding import Padding
-from rich.prompt import Confirm
+from enum import Enum
+from typing import List
 
+import typer
+from girder_client import GirderClient
+
+# from rich.prompt import Confirm
+from rich.columns import Columns
+from rich.console import Console
+from rich.padding import Padding
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from typing_extensions import Annotated
 
 console = Console()
+
+
+class SubmissionFile(str, Enum):
+    REPLPACK = "ReplPack"
+    STDOUT = "stdout"
+    STDERR = "stderr"
+    TRO = "tro"
+    TSR = "tsr"
+    SIG = "sig"
+
+
+enum_to_file_map = {
+    SubmissionFile.REPLPACK: "Replicated Package",
+    SubmissionFile.STDOUT: "Run output log",
+    SubmissionFile.STDERR: "Run error log",
+    SubmissionFile.TRO: "TRO Declaration",
+    SubmissionFile.TSR: "Trusted Timestamp",
+    SubmissionFile.SIG: "TRS Signature",
+}
 
 
 def client() -> GirderClient:
@@ -128,6 +151,13 @@ def get_submission(
     submission: Annotated[
         str, typer.Argument(help="The ID or name of the submission to retrieve")
     ],
+    download: Annotated[
+        List[SubmissionFile] | None,
+        typer.Option(
+            help="Optionally download a specific file associated with the submission",
+            show_default=False,
+        ),
+    ] = None,
 ) -> None:
     # Dummy implementation for demonstration purposes
     typer.echo("Getting a specific submission...")
@@ -196,18 +226,19 @@ def get_submission(
     for name, file_id in FILE_MAP.items():
         if file_id:
             # Use Typer.prompt (which uses Rich) to offer the download
-            file_list.append(
-                Text(f"[bold white]{name}:[/bold white] [dim]{file_id}[/dim]")
-            )
+            file_list.append(f"[bold white]{name}:[/bold white] [dim]{file_id}[/dim]")
 
-            # The actual "appeal" of this section is the interactive download option
-            action = Confirm.ask(
-                f"Do you want to download [bold yellow]{name}[/bold yellow]?"
-            )
-            if action:
-                # Use a cleaner filename for the user
-                fobj = gc.get(f"/file/{file_id}")
-                gc.downloadFile(file_id, fobj["name"])
-                print(f"Downloaded file: {fobj['name']}")
+    console.print(Columns(file_list, expand=True, equal=True))
 
-    # console.print(Columns(file_list, expand=True, equal=True))
+    download = download or []
+    for fetch in download:
+        name = enum_to_file_map[fetch.value]
+        file_id = FILE_MAP.get(name)
+        if not file_id:
+            console.print(
+                f"[bold red]File '{name}' not available for download.[/bold red]"
+            )
+            continue
+        console.print(f"Downloading [bold]{name}[/bold]...")
+        fobj = gc.get(f"/file/{file_id}")
+        gc.downloadFile(file_id, fobj["name"])
