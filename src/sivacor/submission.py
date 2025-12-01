@@ -118,7 +118,7 @@ def list_submissions(
         title="Submission Folders", show_header=True, header_style="bold magenta"
     )
     table.add_column("Submission Name", style="bold green", min_width=20)
-    table.add_column("ID", style="dim", min_width=24)
+    table.add_column("Job ID", style="dim", min_width=24)
     table.add_column("Image Tag", justify="left")
     table.add_column("Created Date", justify="right", style="cyan")
     table.add_column("Status", justify="center")
@@ -138,7 +138,7 @@ def list_submissions(
         created = folder["created"].split(".")[0].replace("T", " ")
         table.add_row(
             folder["name"],
-            folder["_id"],
+            folder["meta"].get("job_id", "N/A"),
             image,
             created,
             status_icon(folder["meta"].get("status", "unknown")),
@@ -149,7 +149,7 @@ def list_submissions(
 
 def get_submission(
     submission: Annotated[
-        str, typer.Argument(help="The ID or name of the submission to retrieve")
+        str, typer.Argument(help="The Job ID or name of the submission to retrieve")
     ],
     download: Annotated[
         List[SubmissionFile] | None,
@@ -163,18 +163,17 @@ def get_submission(
     typer.echo("Getting a specific submission...")
     gc = client()
     root_collection = _get_submission_collection(gc)
+    params = {
+        "parentType": "collection",
+        "parentId": root_collection["_id"],
+    }
     if "-" in submission:
-        folders = gc.get(
-            "/folder",
-            parameters={
-                "name": submission,
-                "parentType": "collection",
-                "parentId": root_collection["_id"],
-            },
-        )
-        folder = folders[0] if folders else None
+        params["name"] = submission
     else:
-        folder = gc.get(f"/folder/{submission}")
+        params["jobId"] = submission
+
+    folders = gc.get("/folder", parameters=params)
+    folder = folders[0] if folders else None
 
     if not folder:
         console.print(
