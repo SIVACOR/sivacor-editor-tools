@@ -195,8 +195,7 @@ def get_submission(
 
     if not folder:
         console.print(
-            f"[bold red]❌ Error:[/bold red] Submission '{submission}' not found.",
-            file=sys.stderr,
+            f"[bold red]❌ Error:[/bold red] Submission '{submission}' not found."
         )
         raise typer.Exit(code=1)
 
