@@ -102,7 +102,17 @@ def list_submissions(
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
         folders.append(folder)
-        image = folder["meta"].get("image_tag", "N/A")
+        stages = folder["meta"].get("stages", [])
+        image = (
+            ",".join(
+                [
+                    f"{stage.get('image_name', 'N/A')}:{stage.get('image_tag', 'N/A')}"
+                    for stage in stages
+                ]
+            )
+            if stages
+            else "N/A"
+        )
         created = folder["created"].split(".")[0].replace("T", " ")
         table.add_row(
             folder["name"],
@@ -118,7 +128,9 @@ def list_submissions(
         console.print(table)
 
 
-@app.command("get", help="Get details about a specific submission and/or download its files")
+@app.command(
+    "get", help="Get details about a specific submission and/or download its files"
+)
 def get_submission(
     submission: Annotated[
         str, typer.Argument(help="The Job ID or name of the submission to retrieve")
@@ -170,8 +182,13 @@ def get_submission(
     summary_content = Text()
     summary_content.append("Status: ", style="bold")
     summary_content.append(f"{meta.get('status', 'N/A')}\n", style="yellow")
-    summary_content.append("Image Tag: ", style="bold")
-    summary_content.append(f"{meta.get('image_tag', 'N/A')}\n", style="magenta")
+    stages = meta.get("stages", [])
+    for i, stage in enumerate(stages):
+        summary_content.append(f"Stage {i+1} Image Tag: ", style="bold")
+        summary_content.append(
+            f"{stage.get('image_name', 'N/A')}:{stage.get('image_tag')}\n",
+            style="magenta",
+        )
     summary_content.append("Created: ", style="bold")
     summary_content.append(
         f"{folder.get('created', 'N/A').split('.')[0].replace('T', ' ')}\n",
