@@ -36,9 +36,13 @@
 2. You can use the SIVACOR toolkit by running the `sivacor` command in your terminal. For example
 
    ```bash
-   sivacor list --user <login or name>
+   sivacor submission list --user <login or name>
    ```
 
    ```bash
-   sivacor get <id>
+   sivacor submission get <id>
+   ```
+
+   ```bash
+   sivacor user list
    ```

@@ -1,11 +1,12 @@
 import typer
 
-from .submission import list_submissions, get_submission
+from .submission import app as submission_app
+from .user import app as user_app
 
 
 app = typer.Typer(help="SIVACOR Command Line Interface")
-app.command("list")(list_submissions)
-app.command("get")(get_submission)
+app.add_typer(user_app, name="user", help="'User' collection related commands")
+app.add_typer(submission_app, name="submission", help="'Submission' collection related commands")
 
 
 if __name__ == "__main__":
