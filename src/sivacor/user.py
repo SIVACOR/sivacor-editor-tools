@@ -37,7 +37,7 @@ def list_users(
                 oauth[_['provider']] = _["id"]
         table.add_row(
             f"{user['firstName']} {user['lastName']}",
-            user["email"],
+            user.get("email", "N/A"),
             user.get("lastJobId", "N/A"),
             ",".join(list(oauth.keys()))
         )
