@@ -198,6 +198,10 @@ def get_submission(
     summary_content.append(
         f"{folder.get('updated', 'N/A').split('.')[0].replace('T', ' ')}", style="cyan"
     )
+    if creator_id := meta.get("creator_id"):
+        creator = gc.get(f"/user/{creator_id}")
+        summary_content.append("\nSubmitted by: ", style="bold")
+        summary_content.append(f"{creator.get('firstName')} {creator.get('lastName')}", style="green")
 
     summary_panel = Panel(
         summary_content,
