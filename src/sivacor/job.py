@@ -1,29 +1,75 @@
+import asyncio
 import json as jsonlib
-import typer
+import os
+import sys
 from typing import List
+
+import typer
+import websockets
 from rich.console import Console
 from rich.table import Table
 from typing_extensions import Annotated
+
 from .lib import client
 
 console = Console()
 app = typer.Typer()
 
-{
-    "created": "2025-11-14T01:44:16.919000+00:00",
-    "status": 3,
-    "title": "SIVACOR Run for astroML.tgz by Kacper Kowalik",
-    "type": "sivacor_submission",
-    "updated": "2025-11-14T01:44:23.952000+00:00",
-    "when": "2025-11-14T01:44:16.919000+00:00",
-}
+
+async def connect_to_job_stream(token):
+    """
+    Connects to the WebSocket server and listens for incoming log messages.
+    """
+
+    api_url = os.environ.get("GIRDER_API_URL", "https://girder.sivacor.org/api/v1")
+    ws_url = api_url.replace("http", "ws").replace("/api/v1", "/logs/docker?token=")
+    print(f"Attempting to connect to WebSocket at: {ws_url}...")
+
+    try:
+        async with websockets.connect(ws_url + token) as websocket:
+            print("Connection successful! 🟢 Subscribed to log stream.")
+            print("=" * 60)
+
+            # This loop waits indefinitely for incoming messages
+            while True:
+                try:
+                    # Receive a text message (your log line)
+                    log_message = await websocket.recv()
+                    if hasattr(log_message, "decode"):
+                        log_message = log_message.decode("utf-8")
+                    print(f"| {log_message}")
+
+                except websockets.exceptions.ConnectionClosedOK:
+                    print("\nConnection closed gracefully by the server.")
+                    break
+                except websockets.exceptions.ConnectionClosedError as e:
+                    print(
+                        f"\nConnection closed unexpectedly (Code: {e.code}, Reason: {e.reason})."
+                    )
+                    break
+
+    except ConnectionRefusedError:
+        print(
+            "\nConnection Refused: Ensure the Starlette server (uvicorn) is "
+            "running and accessible at {ws_url}."
+        )
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nAn unexpected error occurred: {e}")
+        sys.exit(1)
+
+    finally:
+        print("=" * 60)
+        print("WebSocket client debugger stopped.")
 
 
 @app.command("list", help="List all submission jobs")
 def list_jobs(
     status: Annotated[
         List[int] | None,
-        typer.Option(help="Filter jobs by status codes, e.g. [4] for 'failed'", show_default=True),
+        typer.Option(
+            help="Filter jobs by status codes, e.g. [4] for 'failed'", show_default=True
+        ),
     ] = None,
     types: Annotated[
         List[str] | None,
@@ -51,7 +97,7 @@ def list_jobs(
 
     for job in jobs:
         table.add_row(
-            job['_id'],
+            job["_id"],
             job["title"],
             status_code_to_str(job["status"]),
             job["created"][:16].replace("T", " "),
@@ -61,6 +107,16 @@ def list_jobs(
         console.print(jsonlib.dumps(jobs, indent=2))
     else:
         console.print(table)
+
+
+@app.command("stream", help="Show stdout/stderr of the current submission job")
+def stream_current_job() -> None:
+    gc = client()
+    try:
+        asyncio.run(connect_to_job_stream(gc.token))
+    except KeyboardInterrupt:
+        print("\n\nClient stopped by user (Ctrl+C)")
+
 
 def status_code_to_str(code: int) -> str:
     status_map = {
