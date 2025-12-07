@@ -1,10 +1,10 @@
 import json as jsonlib
+from datetime import datetime
 from enum import Enum
 from typing import List
 
+import dateutil.parser
 import typer
-
-# from rich.prompt import Confirm
 from rich.columns import Columns
 from rich.console import Console
 from rich.padding import Padding
@@ -12,8 +12,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from typing_extensions import Annotated
+from tzlocal import get_localzone
 
-from .lib import client, _search_user, _get_submission_collection
+from .lib import _get_submission_collection, _search_user, client
 
 app = typer.Typer()
 console = Console()
@@ -71,12 +72,20 @@ def list_submissions(
         bool,
         typer.Option(help="Output submission list in JSON format", show_default=True),
     ] = False,
+    since: Annotated[
+        datetime | None,
+        typer.Option(
+            help="Filter submissions created since this date", show_default=True
+        ),
+    ] = None,
 ) -> None:
     # Dummy implementation for demonstration purposes
     gc = client()
     if user:
         user_info = _search_user(gc, user)
         console.print(f"[yellow]Filtering by user ID: {user_info['_id']}[/yellow]")
+    if since:
+        since = since.replace(tzinfo=get_localzone(), microsecond=0)
 
     if not json:
         console.print("[bold cyan]🚀 Listing Submissions[/bold cyan]")
@@ -98,6 +107,9 @@ def list_submissions(
     }
     folders = []
     for folder in gc.listResource("folder", params):
+        created = dateutil.parser.parse(folder["created"])
+        if since and created < since:
+            continue
         if user:
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
@@ -201,7 +213,9 @@ def get_submission(
     if creator_id := meta.get("creator_id"):
         creator = gc.get(f"/user/{creator_id}")
         summary_content.append("\nSubmitted by: ", style="bold")
-        summary_content.append(f"{creator.get('firstName')} {creator.get('lastName')}", style="green")
+        summary_content.append(
+            f"{creator.get('firstName')} {creator.get('lastName')}", style="green"
+        )
 
     summary_panel = Panel(
         summary_content,

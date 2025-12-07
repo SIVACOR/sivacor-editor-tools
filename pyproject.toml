@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sivacor"
-version = "0.1.7"
+version = "0.1.8"
 description = "A tool for interacting with SIVACOR platform."
 authors = [
   {name = "Kacper Kowalik", email = "xarthisius.kk@gmail.com"},
@@ -17,10 +17,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "girder-client",
+    "python-dateutil",
     "rich",
     "typer",
-    "girder-client",
     "websockets",
+    "tzlocal",
 ]
 
 

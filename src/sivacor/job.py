@@ -2,13 +2,16 @@ import asyncio
 import json as jsonlib
 import os
 import sys
+from datetime import datetime
 from typing import List
 
+import dateutil.parser
 import typer
 import websockets
 from rich.console import Console
 from rich.table import Table
 from typing_extensions import Annotated
+from tzlocal import get_localzone
 
 from .lib import client
 
@@ -79,13 +82,20 @@ def list_jobs(
         bool,
         typer.Option(help="Output user list in JSON format", show_default=True),
     ] = False,
+    since: Annotated[
+        datetime | None,
+        typer.Option(help="Filter jobs created since this date", show_default=True),
+    ] = None,
 ) -> None:
     gc = client()
+    local_tz = get_localzone()
     params = {}
     if status:
         params["statuses"] = jsonlib.dumps(status)
     if types:
         params["types"] = jsonlib.dumps(types)
+    if since:
+        since = since.replace(tzinfo=local_tz, microsecond=0)
 
     jobs = gc.listResource("job/all", params=params)
     jobs = list(jobs)
@@ -96,6 +106,9 @@ def list_jobs(
     table.add_column("Created", justify="left")
 
     for job in jobs:
+        created = dateutil.parser.parse(job["created"])
+        if since and created < since:
+            continue
         table.add_row(
             job["_id"],
             job["title"],
