@@ -95,8 +95,14 @@ def list_submissions(
     table.add_column("Submission Name", style="bold green", min_width=20)
     table.add_column("Job ID", style="dim", min_width=24)
     table.add_column("Image Tag", justify="left")
+    table.add_column("Creator", justify="left")
     table.add_column("Created Date", justify="right", style="cyan")
     table.add_column("Status", justify="center")
+
+    users = {
+        _["_id"]: f"{_['firstName']} {_['lastName']} ({_['login']})"
+        for _ in gc.listResource("user")
+    }
 
     root_collection = _get_submission_collection(gc)
     params = {
@@ -130,6 +136,7 @@ def list_submissions(
             folder["name"],
             folder["meta"].get("job_id", "N/A"),
             image,
+            users.get(folder["meta"].get("creator_id", ""), "Unknown"),
             created,
             status_icon(folder["meta"].get("status", "unknown")),
         )
