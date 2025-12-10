@@ -184,6 +184,7 @@ def get_submission(
 
     folders = gc.get("/folder", parameters=params)
     folder = folders[0] if folders else None
+    job = gc.get(f"/job/{folder['meta']['job_id']}") if folder else None
 
     if not folder:
         console.print(
@@ -201,13 +202,17 @@ def get_submission(
     summary_content = Text()
     summary_content.append("Status: ", style="bold")
     summary_content.append(f"{meta.get('status', 'N/A')}\n", style="yellow")
+    summary_content.append("Stages:\n", style="bold")
     stages = meta.get("stages", [])
     for i, stage in enumerate(stages):
-        summary_content.append(f"Stage {i+1} Image Tag: ", style="bold")
+        summary_content.append(f" {i+1}. ", style="bold")
+        summary_content.append("Image: ", style="dim")
         summary_content.append(
             f"{stage.get('image_name', 'N/A')}:{stage.get('image_tag')}\n",
             style="magenta",
         )
+        summary_content.append("    Main File: ", style="dim")
+        summary_content.append(f"{stage.get('main_file', 'N/A')}\n", style="magenta")
     summary_content.append("Created: ", style="bold")
     summary_content.append(
         f"{folder.get('created', 'N/A').split('.')[0].replace('T', ' ')}\n",
@@ -231,8 +236,12 @@ def get_submission(
     )
     console.print(summary_panel)
 
+    console.print("\n[bold]🔍 Main workflow job logs:[/bold]")
+    for line in job.get("log", []):
+        console.print(f"[dim]{line.strip()}[/dim]")
+
     # 3. Display File Downloads
-    console.print(Padding("\n[bold]📦 Available Files for Download:[/bold]", (1, 0)))
+    console.print(Padding("\n[bold]📦 Files Available for Download:[/bold]", (1, 0)))
 
     FILE_MAP = {
         "Replicated Package": meta.get("replpack_file_id"),
