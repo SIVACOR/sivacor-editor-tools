@@ -25,6 +25,10 @@ dependencies = [
     "tzlocal",
 ]
 
+[project.optional-dependencies]
+extras = [
+    "python-dotenv",
+]
 
 [project.scripts]
 sivacor = "sivacor.cli:app"
