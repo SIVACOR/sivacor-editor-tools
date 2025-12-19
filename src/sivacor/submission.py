@@ -78,6 +78,12 @@ def list_submissions(
             help="Filter submissions created since this date", show_default=True
         ),
     ] = None,
+    head: Annotated[
+        int | None,
+        typer.Option(
+            help="Only show the first N submissions", show_default=False
+        ),
+    ] = None,
 ) -> None:
     # Dummy implementation for demonstration purposes
     gc = client()
@@ -112,7 +118,7 @@ def list_submissions(
         "parentId": root_collection["_id"],
     }
     folders = []
-    for folder in gc.listResource("folder", params):
+    for folder in gc.listResource("folder", params, limit=head):
         created = dateutil.parser.parse(folder["created"])
         if since and created < since:
             continue
