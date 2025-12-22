@@ -1,3 +1,4 @@
+import math
 import json as jsonlib
 from datetime import datetime
 from enum import Enum
@@ -18,6 +19,29 @@ from .lib import _get_submission_collection, _search_user, client
 
 app = typer.Typer()
 console = Console()
+
+
+def convert_size(size_bytes, binary=True):
+    if size_bytes == 0:
+        return "0B"
+    if binary:
+        suffix = "i"
+        base = 1024
+    else:
+        suffix = ""
+        base = 1000
+    size_name = (
+        "B",
+        f"K{suffix}B",
+        f"M{suffix}B",
+        f"G{suffix}B",
+        f"T{suffix}B",
+        f"P{suffix}B",
+    )
+    i = int(math.floor(math.log(size_bytes, base)))
+    p = math.pow(base, i)
+    s = round(size_bytes / p, 2)
+    return "%s %s" % (s, size_name[i])
 
 
 class SubmissionFile(str, Enum):
@@ -80,9 +104,7 @@ def list_submissions(
     ] = None,
     head: Annotated[
         int | None,
-        typer.Option(
-            help="Only show the first N submissions", show_default=False
-        ),
+        typer.Option(help="Only show the first N submissions", show_default=False),
     ] = None,
 ) -> None:
     # Dummy implementation for demonstration purposes
@@ -258,13 +280,39 @@ def get_submission(
         "TRS Signature": meta.get("sig_file_id"),
     }
 
+    TYPE_TO_FILENAME = {
+        "dockerstats": None,
+        "performance_data": None,
+        "stderr": "Run error log",
+        "stdout": "Run output log",
+        "replicated_package": "Replicated Package",
+        "submission_file": None,
+        "tro_declaration": "TRO Declaration",
+        "tro_signature": "TRS Signature",
+        "tro_timestamp": "Trusted Timestamp",
+    }
+
     # Create rich Text objects for the file list
     file_list = []
+    items = {}
+    for item in gc.get("/item", parameters={"folderId": folder["_id"]}):
+        key = item.get("meta", {}).get("type")
+        key = TYPE_TO_FILENAME.get(key)
+        if not key:
+            continue
+        items[key] = {
+            "itemId": item["_id"],
+            "name": item["name"],
+            "size": item["size"],
+            #    "fileId": fobjs[0]["_id"],
+        }
 
-    for name, file_id in FILE_MAP.items():
-        if file_id:
-            # Use Typer.prompt (which uses Rich) to offer the download
-            file_list.append(f"[bold white]{name}:[/bold white] [dim]{file_id}[/dim]")
+        line = (
+            f"[bold white] - {key}:[/bold white] [dim]{item['name']}[/dim] "
+            f"(size: [dim]{convert_size(item['size'])}[/dim]) "
+            f"(Girder Item ID: [dim]{item['_id']}[/dim])"
+        )
+        file_list.append(Text.from_markup(line))
 
     console.print(Columns(file_list, expand=True, equal=True))
 
