@@ -141,7 +141,7 @@ def list_submissions(
     }
     folders = []
     for folder in gc.listResource("folder", params, limit=head):
-        created = dateutil.parser.parse(folder["created"])
+        created = dateutil.parser.parse(folder["created"]).astimezone(get_localzone())
         if since and created < since:
             continue
         if user:
@@ -159,13 +159,12 @@ def list_submissions(
             if stages
             else "N/A"
         )
-        created = folder["created"].split(".")[0].replace("T", " ")
         table.add_row(
             folder["name"],
             folder["meta"].get("job_id", "N/A"),
             image,
             users.get(folder["meta"].get("creator_id", ""), "Unknown"),
-            created,
+            created.strftime("%Y-%m-%d %H:%M:%S %Z"),
             status_icon(folder["meta"].get("status", "unknown")),
         )
 
@@ -242,13 +241,15 @@ def get_submission(
         summary_content.append("    Main File: ", style="dim")
         summary_content.append(f"{stage.get('main_file', 'N/A')}\n", style="magenta")
     summary_content.append("Created: ", style="bold")
+    created = dateutil.parser.parse(folder["created"]).astimezone(get_localzone())
     summary_content.append(
-        f"{folder.get('created', 'N/A').split('.')[0].replace('T', ' ')}\n",
+        f"{created.strftime('%Y-%m-%d %H:%M:%S %Z')}\n",
         style="cyan",
     )
     summary_content.append("Updated: ", style="bold")
+    updated = dateutil.parser.parse(folder["updated"]).astimezone(get_localzone())
     summary_content.append(
-        f"{folder.get('updated', 'N/A').split('.')[0].replace('T', ' ')}", style="cyan"
+        f"{updated.strftime('%Y-%m-%d %H:%M:%S %Z')}\n", style="cyan"
     )
     if creator_id := meta.get("creator_id"):
         creator = gc.get(f"/user/{creator_id}")

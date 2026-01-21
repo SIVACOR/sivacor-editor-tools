@@ -106,7 +106,7 @@ def list_jobs(
     table.add_column("Created", justify="left")
 
     for job in jobs:
-        created = dateutil.parser.parse(job["created"])
+        created = dateutil.parser.parse(job["created"]).astimezone(local_tz)
         if since and created < since:
             continue
         table.add_row(
@@ -129,6 +129,13 @@ def stream_current_job() -> None:
         asyncio.run(connect_to_job_stream(gc.token))
     except KeyboardInterrupt:
         print("\n\nClient stopped by user (Ctrl+C)")
+
+
+@app.command("get", help="Get details of a specific job by ID")
+def get_job(job_id: str) -> None:
+    gc = client()
+    job = gc.getResource("job", job_id)
+    console.print_json(jsonlib.dumps(job, indent=2))
 
 
 def status_code_to_str(code: int) -> str:
