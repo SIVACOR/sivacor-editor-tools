@@ -1,8 +1,9 @@
 import math
 import json as jsonlib
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Dict
 
 import dateutil.parser
 import typer
@@ -22,7 +23,7 @@ console = Console()
 
 
 def convert_size(size_bytes, binary=True):
-    if size_bytes == 0:
+    if size_bytes <= 0:
         return "0B"
     if binary:
         suffix = "i"
@@ -44,23 +45,99 @@ def convert_size(size_bytes, binary=True):
     return "%s %s" % (s, size_name[i])
 
 
+@dataclass(frozen=True)
+class FileSpec:
+    """Specification for a submission file type, consolidating all naming variants."""
+
+    cli_name: str  # Used in CLI enum (e.g., "ReplPack")
+    display_name: str  # Human-readable name (e.g., "Replicated Package")
+    field_name: str  # Database field name (e.g., "replpack_file_id")
+    api_type: str  # API metadata type (e.g., "replicated_package")
+
+    @property
+    def enum_value(self) -> str:
+        """Return the CLI enum value."""
+        return self.cli_name
+
+
+# Define all submission file specifications
+class SubmissionFiles:
+    """Registry of all submission file types."""
+
+    REPLPACK = FileSpec(
+        cli_name="ReplPack",
+        display_name="Replicated Package",
+        field_name="replpack_file_id",
+        api_type="replicated_package",
+    )
+    STDOUT = FileSpec(
+        cli_name="stdout",
+        display_name="Run output log",
+        field_name="stdout_file_id",
+        api_type="stdout",
+    )
+    STDERR = FileSpec(
+        cli_name="stderr",
+        display_name="Run error log",
+        field_name="stderr_file_id",
+        api_type="stderr",
+    )
+    TRO = FileSpec(
+        cli_name="tro",
+        display_name="TRO Declaration",
+        field_name="tro_file_id",
+        api_type="tro_declaration",
+    )
+    TSR = FileSpec(
+        cli_name="tsr",
+        display_name="Trusted Timestamp",
+        field_name="tsr_file_id",
+        api_type="tro_timestamp",
+    )
+    SIG = FileSpec(
+        cli_name="sig",
+        display_name="TRS Signature",
+        field_name="sig_file_id",
+        api_type="tro_signature",
+    )
+
+    @classmethod
+    def all(cls) -> List[FileSpec]:
+        """Return all file specifications."""
+        return [
+            cls.REPLPACK,
+            cls.STDOUT,
+            cls.STDERR,
+            cls.TRO,
+            cls.TSR,
+            cls.SIG,
+        ]
+
+    @classmethod
+    def by_cli_name(cls) -> Dict[str, FileSpec]:
+        """Return mapping from CLI name to FileSpec."""
+        return {spec.cli_name: spec for spec in cls.all()}
+
+    @classmethod
+    def by_api_type(cls) -> Dict[str, FileSpec]:
+        """Return mapping from API type to FileSpec."""
+        return {spec.api_type: spec for spec in cls.all()}
+
+    @classmethod
+    def by_display_name(cls) -> Dict[str, FileSpec]:
+        """Return mapping from display name to FileSpec."""
+        return {spec.display_name: spec for spec in cls.all()}
+
+
 class SubmissionFile(str, Enum):
+    """CLI Enum for submission file types."""
+
     REPLPACK = "ReplPack"
     STDOUT = "stdout"
     STDERR = "stderr"
     TRO = "tro"
     TSR = "tsr"
     SIG = "sig"
-
-
-enum_to_file_map = {
-    SubmissionFile.REPLPACK: "Replicated Package",
-    SubmissionFile.STDOUT: "Run output log",
-    SubmissionFile.STDERR: "Run error log",
-    SubmissionFile.TRO: "TRO Declaration",
-    SubmissionFile.TSR: "Trusted Timestamp",
-    SubmissionFile.SIG: "TRS Signature",
-}
 
 
 def status_icon(status: str) -> str:
@@ -265,51 +342,43 @@ def get_submission(
     )
     console.print(summary_panel)
 
-    console.print("\n[bold]🔍 Main workflow job logs:[/bold]")
-    for line in job.get("log", []):
-        console.print(f"[dim]{line.strip()}[/dim]")
+    if job:
+        console.print("\n[bold]🔍 Main workflow job logs:[/bold]")
+        for line in job.get("log", []):
+            console.print(f"[dim]{line.strip()}[/dim]")
 
     # 3. Display File Downloads
     console.print(Padding("\n[bold]📦 Files Available for Download:[/bold]", (1, 0)))
 
-    FILE_MAP = {
-        "Replicated Package": meta.get("replpack_file_id"),
-        "Run output log": meta.get("stdout_file_id"),
-        "Run error log": meta.get("stderr_file_id"),
-        "TRO Declaration": meta.get("tro_file_id"),
-        "Trusted Timestamp": meta.get("tsr_file_id"),
-        "TRS Signature": meta.get("sig_file_id"),
-    }
+    # Build mapping from display name to file ID from submission metadata
+    file_id_map = {}
+    for spec in SubmissionFiles.all():
+        file_id = meta.get(spec.field_name)
+        if file_id:
+            file_id_map[spec.display_name] = file_id
 
-    TYPE_TO_FILENAME = {
-        "dockerstats": None,
-        "performance_data": None,
-        "stderr": "Run error log",
-        "stdout": "Run output log",
-        "replicated_package": "Replicated Package",
-        "submission_file": None,
-        "tro_declaration": "TRO Declaration",
-        "tro_signature": "TRS Signature",
-        "tro_timestamp": "Trusted Timestamp",
-    }
+    # Build mapping from API type to FileSpec for easy lookup
+    api_type_to_spec = SubmissionFiles.by_api_type()
 
     # Create rich Text objects for the file list
     file_list = []
     items = {}
     for item in gc.get("/item", parameters={"folderId": folder["_id"]}):
-        key = item.get("meta", {}).get("type")
-        key = TYPE_TO_FILENAME.get(key)
-        if not key:
+        api_type = item.get("meta", {}).get("type")
+        spec = api_type_to_spec.get(api_type)
+
+        if not spec:
             continue
-        items[key] = {
+
+        display_name = spec.display_name
+        items[display_name] = {
             "itemId": item["_id"],
             "name": item["name"],
             "size": item["size"],
-            #    "fileId": fobjs[0]["_id"],
         }
 
         line = (
-            f"[bold white] - {key}:[/bold white] [dim]{item['name']}[/dim] "
+            f"[bold white] - {display_name}:[/bold white] [dim]{item['name']}[/dim] "
             f"(size: [dim]{convert_size(item['size'])}[/dim]) "
             f"(Girder Item ID: [dim]{item['_id']}[/dim])"
         )
@@ -318,14 +387,21 @@ def get_submission(
     console.print(Columns(file_list, expand=True, equal=True))
 
     download = download or []
+    cli_name_to_spec = SubmissionFiles.by_cli_name()
+
     for fetch in download:
-        name = enum_to_file_map[fetch.value]
-        file_id = FILE_MAP.get(name)
+        spec = cli_name_to_spec.get(fetch.value)
+        if not spec:
+            console.print(f"[bold red]Unknown file type: '{fetch.value}'[/bold red]")
+            continue
+
+        file_id = file_id_map.get(spec.display_name)
         if not file_id:
             console.print(
-                f"[bold red]File '{name}' not available for download.[/bold red]"
+                f"[bold red]File '{spec.display_name}' not available for download.[/bold red]"
             )
             continue
-        console.print(f"Downloading [bold]{name}[/bold]...")
+
+        console.print(f"Downloading [bold]{spec.display_name}[/bold]...")
         fobj = gc.get(f"/file/{file_id}")
         gc.downloadFile(file_id, fobj["name"])
