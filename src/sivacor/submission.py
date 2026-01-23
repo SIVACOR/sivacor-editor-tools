@@ -132,6 +132,7 @@ class SubmissionFiles:
 class SubmissionFile(str, Enum):
     """CLI Enum for submission file types."""
 
+    ALL = "all"
     REPLPACK = "ReplPack"
     STDOUT = "stdout"
     STDERR = "stderr"
@@ -389,12 +390,23 @@ def get_submission(
     download = download or []
     cli_name_to_spec = SubmissionFiles.by_cli_name()
 
-    for fetch in download:
-        spec = cli_name_to_spec.get(fetch.value)
-        if not spec:
-            console.print(f"[bold red]Unknown file type: '{fetch.value}'[/bold red]")
-            continue
+    # If 'all' is specified, download all available files
+    if any(fetch.value == "all" for fetch in download):
+        download_specs = [
+            cli_name_to_spec[spec.cli_name] for spec in SubmissionFiles.all()
+        ]
+    else:
+        download_specs = []
+        for fetch in download:
+            spec = cli_name_to_spec.get(fetch.value)
+            if not spec:
+                console.print(
+                    f"[bold red]Unknown file type: '{fetch.value}'[/bold red]"
+                )
+                continue
+            download_specs.append(spec)
 
+    for spec in download_specs:
         file_id = file_id_map.get(spec.display_name)
         if not file_id:
             console.print(
