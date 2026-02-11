@@ -324,6 +324,22 @@ def get_submission(
         console.print(jsonlib.dumps(folder, indent=2))
         return
 
+    items = gc.get("/item", parameters={"folderId": folder["_id"]})
+    performances = {}
+    for item in items:
+        if not item.get("meta", {}).get("type") == "performance_data":
+            continue
+        # Extract stage from "performance_data_stage_1.json"
+        stage_num = item["name"].split("_")[-1].split(".")[0]
+        try:
+            performances[stage_num] = jsonlib.loads(
+                gc.sendRestRequest(
+                    "GET", f"item/{item['_id']}/download", jsonResp=False, stream=True
+                ).content
+            )
+        except Exception:
+            performances[stage_num] = None
+
     # 2. Display Core Summary
     meta = folder.get("meta", {})
 
@@ -341,6 +357,18 @@ def get_submission(
         )
         summary_content.append("    Main File: ", style="dim")
         summary_content.append(f"{stage.get('main_file', 'N/A')}\n", style="magenta")
+        if performance := performances.get(str(i + 1)):
+            summary_content.append("    Performance Metrics:\n", style="dim")
+            for metric, value in performance.items():
+                if metric.startswith("ImageRepo"):
+                    continue
+                if metric in ("MemTotal", "MaxMemoryUsage"):
+                    value = convert_size(value)
+                elif metric in ("StartedAt", "FinishedAt"):
+                    value = dateutil.parser.parse(value).astimezone(get_localzone()).strftime(
+                        "%Y-%m-%d %H:%M:%S %Z"
+                    )
+                summary_content.append(f"      - {metric}: {value}\n", style="cyan")
     summary_content.append("Created: ", style="bold")
     created = dateutil.parser.parse(folder["created"]).astimezone(get_localzone())
     summary_content.append(
@@ -386,8 +414,7 @@ def get_submission(
 
     # Create rich Text objects for the file list
     file_list = []
-    items = {}
-    for item in gc.get("/item", parameters={"folderId": folder["_id"]}):
+    for item in items:
         api_type = item.get("meta", {}).get("type")
         spec = api_type_to_spec.get(api_type)
 
@@ -395,12 +422,6 @@ def get_submission(
             continue
 
         display_name = spec.display_name
-        items[display_name] = {
-            "itemId": item["_id"],
-            "name": item["name"],
-            "size": item["size"],
-        }
-
         line = (
             f"[bold white] - {display_name}:[/bold white] [dim]{item['name']}[/dim] "
             f"(size: [dim]{convert_size(item['size'])}[/dim]) "
