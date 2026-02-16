@@ -244,6 +244,12 @@ def list_submissions(
         if user:
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
+        if folder["meta"].get("status", "").lower() in ("submitted", "processing"):
+            updated = datetime.now(get_localzone())
+        else:
+            updated = dateutil.parser.parse(folder["updated"]).astimezone(
+                get_localzone()
+            )
         folders.append(folder)
         stages = folder["meta"].get("stages", [])
         image = (
@@ -264,7 +270,7 @@ def list_submissions(
             created.strftime("%Y-%m-%d %H:%M:%S %Z"),
             duration(
                 created,
-                dateutil.parser.parse(folder["updated"]).astimezone(get_localzone()),
+                updated,
             ),
             status_icon(folder["meta"].get("status", "unknown")),
         )
@@ -363,10 +369,15 @@ def get_submission(
                 if metric.startswith("ImageRepo"):
                     continue
                 if metric in ("MemTotal", "MaxMemoryUsage"):
-                    value = convert_size(value)
+                    try:
+                        value = convert_size(value)
+                    except ValueError:
+                        value = "unknown"
                 elif metric in ("StartedAt", "FinishedAt"):
-                    value = dateutil.parser.parse(value).astimezone(get_localzone()).strftime(
-                        "%Y-%m-%d %H:%M:%S %Z"
+                    value = (
+                        dateutil.parser.parse(value)
+                        .astimezone(get_localzone())
+                        .strftime("%Y-%m-%d %H:%M:%S %Z")
                     )
                 summary_content.append(f"      - {metric}: {value}\n", style="cyan")
     summary_content.append("Created: ", style="bold")
