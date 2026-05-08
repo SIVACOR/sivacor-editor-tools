@@ -22,6 +22,15 @@ app = typer.Typer()
 console = Console()
 
 
+def cat_file(gc, file_id: str):
+    response = gc.sendRestRequest(
+        "GET", f"file/{file_id}/download", stream=True, jsonResp=False
+    )
+    response.raise_for_status()
+    for chunk in response.iter_content(chunk_size=65536):
+        print(chunk.decode("utf-8"), end="")
+
+
 def duration(start: datetime, end: datetime) -> str:
     delta = end - start
     days, seconds = delta.days, delta.seconds
@@ -301,6 +310,20 @@ def get_submission(
             help="Output submission details in JSON format", show_default=True
         ),
     ] = False,
+    stdout: Annotated[
+        bool,
+        typer.Option(
+            help="Print the stdout log to the console",
+            show_default=True,
+        ),
+    ] = False,
+    stderr: Annotated[
+        bool,
+        typer.Option(
+            help="Print the stderr log to the console",
+            show_default=True,
+        ),
+    ] = False,
 ) -> None:
     # Dummy implementation for demonstration purposes
     if not json:
@@ -330,6 +353,39 @@ def get_submission(
         console.print(jsonlib.dumps(folder, indent=2))
         return
 
+    # Build mapping from display name to file ID from submission metadata
+    meta = folder.get("meta", {})
+    file_id_map = {}
+    for spec in SubmissionFiles.all():
+        file_id = meta.get(spec.field_name)
+        if file_id:
+            file_id_map[spec.display_name] = file_id
+
+    # Build mapping from API type to FileSpec for easy lookup
+    api_type_to_spec = SubmissionFiles.by_api_type()
+
+    if stdout:
+        stdout_id = file_id_map.get("Run output log")
+        if stdout_id:
+            console.print("[bold]📄 Standard Output (stdout):[/bold]")
+            cat_file(gc, stdout_id)
+        else:
+            console.print(
+                "[bold yellow]⚠️  Warning:[/bold yellow] No stdout log available for this submission."
+            )
+        return
+
+    if stderr:
+        stderr_id = file_id_map.get("Run error log")
+        if stderr_id:
+            console.print("[bold]📄 Standard Error (stderr):[/bold]")
+            cat_file(gc, stderr_id)
+        else:
+            console.print(
+                "[bold yellow]⚠️  Warning:[/bold yellow] No stderr log available for this submission."
+            )
+        return
+
     items = gc.get("/item", parameters={"folderId": folder["_id"]})
     performances = {}
     for item in items:
@@ -347,8 +403,6 @@ def get_submission(
             performances[stage_num] = None
 
     # 2. Display Core Summary
-    meta = folder.get("meta", {})
-
     summary_content = Text()
     summary_content.append("Status: ", style="bold")
     summary_content.append(f"{meta.get('status', 'N/A')}\n", style="yellow")
@@ -412,16 +466,6 @@ def get_submission(
 
     # 3. Display File Downloads
     console.print(Padding("\n[bold]📦 Files Available for Download:[/bold]", (1, 0)))
-
-    # Build mapping from display name to file ID from submission metadata
-    file_id_map = {}
-    for spec in SubmissionFiles.all():
-        file_id = meta.get(spec.field_name)
-        if file_id:
-            file_id_map[spec.display_name] = file_id
-
-    # Build mapping from API type to FileSpec for easy lookup
-    api_type_to_spec = SubmissionFiles.by_api_type()
 
     # Create rich Text objects for the file list
     file_list = []
