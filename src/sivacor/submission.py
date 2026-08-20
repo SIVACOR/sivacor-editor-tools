@@ -49,6 +49,45 @@ def duration(start: datetime, end: datetime) -> str:
     return " ".join(parts)
 
 
+def container_memory_limit(performance: Dict) -> int | None:
+    """The cap one stage's container was given, in bytes.
+
+    Read out of ``DockerRunArgs`` because that is the only place it exists in a
+    performance-data file: the backend dumps ``container_kwargs`` there verbatim,
+    and the top-level keys carry what the *machine* had (``MemTotal``), never
+    what the container was allowed. Deliberately not added as a field of its own
+    server-side -- the file is hashed into a signed TRO, and two spellings of one
+    figure inside a certified artifact is a divergence waiting to happen.
+
+    ``None`` when Docker reported no ``MemTotal``, in which case the analysis
+    genuinely ran uncapped and there is no ratio to report.
+    """
+    raw = performance.get("DockerRunArgs")
+    if not isinstance(raw, str):
+        return None
+    try:
+        limit = jsonlib.loads(raw).get("mem_limit")
+    except (ValueError, AttributeError):
+        return None
+    return limit if isinstance(limit, int) and limit > 0 else None
+
+
+def memory_utilisation(performance: Dict) -> tuple[int, int, str] | None:
+    """``(peak, limit, "42%")`` for one stage, or ``None`` if either is missing.
+
+    The percentage is a string so the sub-1% case can say ``<1%`` rather than
+    rounding a real measurement to a flat zero -- which is the common case for a
+    small analysis on a large worker, i.e. exactly the case this figure exists to
+    make visible.
+    """
+    peak = performance.get("MaxMemoryUsage")
+    limit = container_memory_limit(performance)
+    if not isinstance(peak, int) or limit is None:
+        return None
+    percent = peak / limit * 100
+    return peak, limit, "<1%" if percent < 1 else f"{round(percent)}%"
+
+
 def convert_size(size_bytes, binary=True):
     if size_bytes <= 0:
         return "0B"
@@ -228,6 +267,11 @@ def list_submissions(
     table.add_column("Submission Name", style="bold green", min_width=20)
     table.add_column("Job ID", style="dim", min_width=24)
     table.add_column("Image Tag", justify="left")
+    # The rung the researcher asked for. Folder-level, not per-stage: one
+    # submission runs on one machine. "-" rather than "N/A" for a submission
+    # made before the size was recorded at all -- those are simply older, not
+    # missing something, and this column is scanned down rather than read.
+    table.add_column("Size", justify="right")
     table.add_column("Creator", justify="left")
     table.add_column("Created Date", justify="right", style="cyan")
     table.add_column("Duration", justify="right", style="cyan")
@@ -271,10 +315,12 @@ def list_submissions(
             if stages
             else "N/A"
         )
+        requested_gb = folder["meta"].get("requested_memory_gb")
         table.add_row(
             folder["name"],
             folder["meta"].get("job_id", "N/A"),
             image,
+            f"{requested_gb} GB" if requested_gb else "-",
             users.get(folder["meta"].get("creator_id", ""), "Unknown"),
             created.strftime("%Y-%m-%d %H:%M:%S %Z"),
             duration(
@@ -406,6 +452,13 @@ def get_submission(
     summary_content = Text()
     summary_content.append("Status: ", style="bold")
     summary_content.append(f"{meta.get('status', 'N/A')}\n", style="yellow")
+    if requested_gb := meta.get("requested_memory_gb"):
+        summary_content.append("Requested size: ", style="bold")
+        # What was asked for, which is not necessarily what the box had: a
+        # deployment whose default flavour disagrees with the catalogue runs a
+        # submission on hardware it did not request. The per-stage memory line
+        # below reports what it actually got, so the two can be compared.
+        summary_content.append(f"{requested_gb} GB\n", style="yellow")
     summary_content.append("Stages:\n", style="bold")
     stages = meta.get("stages", [])
     for i, stage in enumerate(stages):
@@ -418,6 +471,20 @@ def get_submission(
         summary_content.append("    Main File: ", style="dim")
         summary_content.append(f"{stage.get('main_file', 'N/A')}\n", style="magenta")
         if performance := performances.get(str(i + 1)):
+            # Derived and shown first, because it is the question an editor
+            # actually has: did this run need the machine it was given? The two
+            # halves are far apart in the raw dump below -- MaxMemoryUsage is a
+            # top-level key, while the cap is buried inside the DockerRunArgs
+            # JSON string -- so nobody reads them as a ratio unless it is
+            # computed for them.
+            if (used := memory_utilisation(performance)) is not None:
+                peak, limit, percent = used
+                summary_content.append("    Memory: ", style="dim")
+                summary_content.append(
+                    f"{convert_size(peak)} peak of {convert_size(limit)} allowed "
+                    f"({percent})\n",
+                    style="magenta",
+                )
             summary_content.append("    Performance Metrics:\n", style="dim")
             for metric, value in performance.items():
                 if metric.startswith("ImageRepo"):
