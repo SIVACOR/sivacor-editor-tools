@@ -211,6 +211,11 @@ def status_icon(status: str) -> str:
     status_map = {
         "submitted": "⏳",
         "processing": "🔄",
+        # Transitional: the cancel has been accepted and the worker is still
+        # writing the run's output back. Distinct from "failed" because the
+        # server will refuse to delete a submission in this state -- see
+        # development_notes/incidents/2026-09-03-cancel-delete-race.md.
+        "canceling": "🛑",
         "completed": "✅",
         "failed": "❌",
     }
@@ -297,7 +302,12 @@ def list_submissions(
         if user:
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
-        if folder["meta"].get("status", "").lower() in ("submitted", "processing"):
+        # "canceling" counts as in-flight: the worker is still uploading.
+        if folder["meta"].get("status", "").lower() in (
+            "submitted",
+            "processing",
+            "canceling",
+        ):
             updated = datetime.now(get_localzone())
         else:
             updated = dateutil.parser.parse(folder["updated"]).astimezone(
