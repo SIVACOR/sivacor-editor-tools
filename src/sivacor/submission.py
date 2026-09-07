@@ -16,7 +16,12 @@ from rich.text import Text
 from typing_extensions import Annotated
 from tzlocal import get_localzone
 
-from .lib import _get_submission_collection, _search_user, client
+from .lib import (
+    _get_submission_collection,
+    _search_user,
+    image_summary,
+    client,
+)
 
 app = typer.Typer()
 console = Console()
@@ -271,7 +276,10 @@ def list_submissions(
     )
     table.add_column("Submission Name", style="bold green", min_width=20)
     table.add_column("Job ID", style="dim", min_width=24)
-    table.add_column("Image Tag", justify="left")
+    # Abbreviated (see lib.abbreviate_image): the full repo:tag is an order
+    # of magnitude wider than the information it carries here, and `--json`
+    # and `submission get` both still report it verbatim.
+    table.add_column("Image", justify="left")
     # The rung the researcher asked for. Folder-level, not per-stage: one
     # submission runs on one machine. "-" rather than "N/A" for a submission
     # made before the size was recorded at all -- those are simply older, not
@@ -315,16 +323,7 @@ def list_submissions(
             )
         folders.append(folder)
         stages = folder["meta"].get("stages", [])
-        image = (
-            ",".join(
-                [
-                    f"{stage.get('image_name', 'N/A')}:{stage.get('image_tag', 'N/A')}"
-                    for stage in stages
-                ]
-            )
-            if stages
-            else "N/A"
-        )
+        image = image_summary(stages)
         requested_gb = folder["meta"].get("requested_memory_gb")
         table.add_row(
             folder["name"],
