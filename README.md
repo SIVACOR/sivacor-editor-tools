@@ -2,27 +2,42 @@
 
 ## How to install
 
-1. Install `pipx` if you don't have it already:
+1. Install [`uv`](https://docs.astral.sh/uv/) if you don't have it already:
 
    ```bash
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-   or follow more detailed instructions at [https://pipx.pypa.io/stable/](https://pipx.pypa.io/stable/).
-2. Install the SIVACOR toolkit using `pipx`:
+   or follow more detailed instructions at
+   [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/).
+
+2. Install the SIVACOR toolkit as a `uv` tool:
 
    ```bash
-   pipx install git+https://github.com/SIVACOR/sivacor-editor-tools.git
+   uv tool install git+https://github.com/SIVACOR/sivacor-editor-tools.git
    ```
 
-   follow the instructions to ensure your PATH is set up correctly.
+   Add `uv tool update-shell` (once) if `~/.local/bin` isn't on your `PATH` yet.
+
+   To also read configuration from a `.env` file, install with the `extras` extra:
+
+   ```bash
+   uv tool install "sivacor[extras] @ git+https://github.com/SIVACOR/sivacor-editor-tools.git"
+   ```
 
 3. Verify the installation by running:
 
    ```bash
-
    sivacor --help
+   ```
+
+   Later, upgrade with `uv tool upgrade sivacor`, or remove it with
+   `uv tool uninstall sivacor`.
+
+   You can also run it without installing anything:
+
+   ```bash
+   uvx --from git+https://github.com/SIVACOR/sivacor-editor-tools.git sivacor --help
    ```
 
 ## How to use
@@ -46,3 +61,15 @@
    ```bash
    sivacor user list
    ```
+
+## Development
+
+The project is managed with `uv`; `uv.lock` pins the full dependency set.
+
+```bash
+uv sync --extra extras   # create .venv from the lockfile
+uv run sivacor --help    # run the CLI from the project environment
+uv run ruff check src/   # lint
+uv build                 # build sdist + wheel into dist/
+uv lock --upgrade        # refresh pinned versions
+```

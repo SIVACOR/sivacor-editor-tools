@@ -1,8 +1,10 @@
 import json as jsonlib
+from typing import Annotated
+
 import typer
 from rich.console import Console
 from rich.table import Table
-from typing_extensions import Annotated
+
 from .lib import client
 
 console = Console()

@@ -6,6 +6,8 @@ build-backend = "hatchling.build"
 name = "sivacor"
 version = "0.1.10"
 description = "A tool for interacting with SIVACOR platform."
+readme = "README.md"
+requires-python = ">=3.10"
 authors = [
   {name = "Kacper Kowalik", email = "xarthisius.kk@gmail.com"},
 ]
@@ -13,7 +15,10 @@ license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -23,6 +28,7 @@ dependencies = [
     "typer",
     "websockets",
     "tzlocal",
+    "typing-extensions>=4.16.0",
 ]
 
 [project.optional-dependencies]
@@ -32,3 +38,14 @@ extras = [
 
 [project.scripts]
 sivacor = "sivacor.cli:app"
+
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sivacor"]

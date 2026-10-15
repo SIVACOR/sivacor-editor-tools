@@ -1,9 +1,9 @@
-import math
 import json as jsonlib
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict
+from typing import Annotated
 
 import dateutil.parser
 import typer
@@ -13,14 +13,13 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from typing_extensions import Annotated
 from tzlocal import get_localzone
 
 from .lib import (
     _get_submission_collection,
     _search_user,
-    image_summary,
     client,
+    image_summary,
 )
 
 app = typer.Typer()
@@ -54,7 +53,7 @@ def duration(start: datetime, end: datetime) -> str:
     return " ".join(parts)
 
 
-def container_memory_limit(performance: Dict) -> int | None:
+def container_memory_limit(performance: dict) -> int | None:
     """The cap one stage's container was given, in bytes.
 
     Read out of ``DockerRunArgs`` because that is the only place it exists in a
@@ -77,7 +76,7 @@ def container_memory_limit(performance: Dict) -> int | None:
     return limit if isinstance(limit, int) and limit > 0 else None
 
 
-def memory_utilisation(performance: Dict) -> tuple[int, int, str] | None:
+def memory_utilisation(performance: dict) -> tuple[int, int, str] | None:
     """``(peak, limit, "42%")`` for one stage, or ``None`` if either is missing.
 
     The percentage is a string so the sub-1% case can say ``<1%`` rather than
@@ -173,7 +172,7 @@ class SubmissionFiles:
     )
 
     @classmethod
-    def all(cls) -> List[FileSpec]:
+    def all(cls) -> list[FileSpec]:
         """Return all file specifications."""
         return [
             cls.REPLPACK,
@@ -185,17 +184,17 @@ class SubmissionFiles:
         ]
 
     @classmethod
-    def by_cli_name(cls) -> Dict[str, FileSpec]:
+    def by_cli_name(cls) -> dict[str, FileSpec]:
         """Return mapping from CLI name to FileSpec."""
         return {spec.cli_name: spec for spec in cls.all()}
 
     @classmethod
-    def by_api_type(cls) -> Dict[str, FileSpec]:
+    def by_api_type(cls) -> dict[str, FileSpec]:
         """Return mapping from API type to FileSpec."""
         return {spec.api_type: spec for spec in cls.all()}
 
     @classmethod
-    def by_display_name(cls) -> Dict[str, FileSpec]:
+    def by_display_name(cls) -> dict[str, FileSpec]:
         """Return mapping from display name to FileSpec."""
         return {spec.display_name: spec for spec in cls.all()}
 
@@ -353,7 +352,7 @@ def get_submission(
         str, typer.Argument(help="The Job ID or name of the submission to retrieve")
     ],
     download: Annotated[
-        List[SubmissionFile] | None,
+        list[SubmissionFile] | None,
         typer.Option(
             help="Optionally download a specific file associated with the submission",
             show_default=False,

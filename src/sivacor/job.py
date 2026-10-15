@@ -3,14 +3,13 @@ import json as jsonlib
 import os
 import sys
 from datetime import datetime
-from typing import List
+from typing import Annotated
 
 import dateutil.parser
 import typer
 import websockets
 from rich.console import Console
 from rich.table import Table
-from typing_extensions import Annotated
 from tzlocal import get_localzone
 
 from .lib import client
@@ -69,13 +68,13 @@ async def connect_to_job_stream(token):
 @app.command("list", help="List all submission jobs")
 def list_jobs(
     status: Annotated[
-        List[int] | None,
+        list[int] | None,
         typer.Option(
             help="Filter jobs by status codes, e.g. [4] for 'failed'", show_default=True
         ),
     ] = None,
     types: Annotated[
-        List[str] | None,
+        list[str] | None,
         typer.Option(help="Filter jobs by types", show_default=True),
     ] = ["sivacor_submission"],
     json: Annotated[

@@ -7,10 +7,9 @@ try:
 except ImportError:
     pass
 
+from .job import app as job_app
 from .submission import app as submission_app
 from .user import app as user_app
-from .job import app as job_app
-
 
 app = typer.Typer(help="SIVACOR Command Line Interface", add_completion=True)
 app.add_typer(user_app, name="user", help="'User' collection related commands")
