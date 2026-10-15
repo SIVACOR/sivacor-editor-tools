@@ -13,11 +13,12 @@ def client() -> GirderClient:
 
 def _get_submission_collection(gc: GirderClient) -> dict:
     root_collection = gc.get("/collection", parameters={"name": "Submissions"})
-    if not root_collection:
-        typer.echo("No 'Submissions' collection found!", err=True)
-        raise typer.Abort()
-    return root_collection[0]
-
+    if root_collection:
+        for c in root_collection:
+            if c["name"] == "Submissions":
+                return c
+    typer.echo("No 'Submissions' collection found!", err=True)
+    raise typer.Abort()
 
 def _search_user(gc: GirderClient, user: str) -> dict:
     typer.echo(f"Searching for user with text: {user}")
