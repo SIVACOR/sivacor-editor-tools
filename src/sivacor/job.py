@@ -56,7 +56,10 @@ async def connect_to_job_stream(token):
             "running and accessible at {ws_url}."
         )
         sys.exit(1)
-    except Exception as e:
+    # Deliberate catch-all at the CLI boundary: report and exit instead of
+    # dumping a traceback. KeyboardInterrupt/CancelledError are BaseException,
+    # so Ctrl-C still propagates.
+    except Exception as e:  # noqa: BLE001
         print(f"\nAn unexpected error occurred: {e}")
         sys.exit(1)
 
@@ -76,7 +79,7 @@ def list_jobs(
     types: Annotated[
         list[str] | None,
         typer.Option(help="Filter jobs by types", show_default=True),
-    ] = ["sivacor_submission"],
+    ] = ("sivacor_submission",),
     json: Annotated[
         bool,
         typer.Option(help="Output user list in JSON format", show_default=True),

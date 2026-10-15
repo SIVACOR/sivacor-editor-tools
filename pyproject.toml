@@ -29,6 +29,7 @@ dependencies = [
     "websockets",
     "tzlocal",
     "typing-extensions>=4.16.0",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]

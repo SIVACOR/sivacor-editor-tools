@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Annotated
 
 import dateutil.parser
+import girder_client
+import requests
 import typer
 from rich.columns import Columns
 from rich.console import Console
@@ -109,10 +111,10 @@ def convert_size(size_bytes, binary=True):
         f"T{suffix}B",
         f"P{suffix}B",
     )
-    i = int(math.floor(math.log(size_bytes, base)))
+    i = math.floor(math.log(size_bytes, base))
     p = math.pow(base, i)
     s = round(size_bytes / p, 2)
-    return "%s %s" % (s, size_name[i])
+    return f"{s} {size_name[i]}"
 
 
 @dataclass(frozen=True)
@@ -306,7 +308,9 @@ def list_submissions(
         created = dateutil.parser.parse(folder["created"]).astimezone(get_localzone())
         if since and created < since:
             continue
-        if user:
+        # Nested deliberately: the inner test only means anything once --user
+        # was given, and flattening hides that.
+        if user:  # noqa: SIM102
             if folder["meta"].get("creator_id", "") != user_info["_id"]:
                 continue
         # "canceling" counts as in-flight: the worker is still uploading.
@@ -443,7 +447,7 @@ def get_submission(
     items = gc.get("/item", parameters={"folderId": folder["_id"]})
     performances = {}
     for item in items:
-        if not item.get("meta", {}).get("type") == "performance_data":
+        if item.get("meta", {}).get("type") != "performance_data":
             continue
         # Extract stage from "performance_data_stage_1.json"
         stage_num = item["name"].split("_")[-1].split(".")[0]
@@ -453,7 +457,13 @@ def get_submission(
                     "GET", f"item/{item['_id']}/download", jsonResp=False, stream=True
                 ).content
             )
-        except Exception:
+        # A missing or unreadable performance file degrades to "no data" rather
+        # than sinking the whole submission view.
+        except (
+            girder_client.HttpError,
+            requests.RequestException,
+            jsonlib.JSONDecodeError,
+        ):
             performances[stage_num] = None
 
     # 2. Display Core Summary

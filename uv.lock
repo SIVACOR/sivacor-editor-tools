@@ -370,6 +370,7 @@ source = { editable = "." }
 dependencies = [
     { name = "girder-client" },
     { name = "python-dateutil" },
+    { name = "requests" },
     { name = "rich" },
     { name = "typer" },
     { name = "typing-extensions" },
@@ -393,6 +394,7 @@ requires-dist = [
     { name = "girder-client" },
     { name = "python-dateutil" },
     { name = "python-dotenv", marker = "extra == 'extras'" },
+    { name = "requests", specifier = ">=2.34.2" },
     { name = "rich" },
     { name = "typer" },
     { name = "typing-extensions", specifier = ">=4.16.0" },
