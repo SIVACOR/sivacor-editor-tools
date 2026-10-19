@@ -285,7 +285,11 @@ def list_submissions(
     # submission runs on one machine. "-" rather than "N/A" for a submission
     # made before the size was recorded at all -- those are simply older, not
     # missing something, and this column is scanned down rather than read.
-    table.add_column("Size", justify="right")
+    table.add_column("RAM", justify="right")
+    # Scratch Cinder volume, if one was requested. The folder only carries the
+    # key when it was -- the worker writes None, which Girder's metadata PUT
+    # treats as a delete -- so a blank here means "root disk only".
+    table.add_column("Volume", justify="right")
     table.add_column("Creator", justify="left")
     table.add_column("Created Date", justify="right", style="cyan")
     table.add_column("Duration", justify="right", style="cyan")
@@ -328,11 +332,13 @@ def list_submissions(
         stages = folder["meta"].get("stages", [])
         image = image_summary(stages)
         requested_gb = folder["meta"].get("requested_memory_gb")
+        volume_gb = folder["meta"].get("requested_disk_gb")
         table.add_row(
             folder["name"],
             folder["meta"].get("job_id", "N/A"),
             image,
             f"{requested_gb} GB" if requested_gb else "-",
+            f"{volume_gb} GB" if volume_gb else "-",
             users.get(folder["meta"].get("creator_id", ""), "Unknown"),
             created.strftime("%Y-%m-%d %H:%M:%S %Z"),
             duration(
